@@ -1,9 +1,9 @@
-from github import Github
-
-import json
 import os
+import json
 import pprint
 import bugzilla
+
+from github import Github
 
 # public test instance of bugzilla.redhat.com. It's okay to make changes
 BZ_URL = "https://bugzilla.redhat.com"
@@ -25,26 +25,22 @@ def create_issue(repo_handle, title, desc, labels, assign=None):
                                      body=desc,
                                      labels=labels,
                                      assignee=assign)
-    
 
-def main():
-    # using username and password
-    # gh = Github(GH_USER, GH_PASS)
-    gh = Github(GH_TOKEN)
-    repo = gh.get_repo(GH_REPO)
-    bzapi = bugzilla.Bugzilla(BZ_URL)
-
-    all_assignee_map = {}
+def setup():
+    bz_to_gh_map = {}
     with open("assignee.list") as alist:
         email, gh_id = alist.readline().split(' ')
-        all_assignee_map[email] = gh_id
+        bz_to_gh_map[email] = gh_id
 
-    # for each bug
-    bugId = 1193929
+    print(bz_to_gh_map)
+    return bz_to_gh_map
+
+def migrate_bug(ghrepo, bzapi, users, bugId):
     bug = bzapi.getbug(bugId)
     print(bug)
     pprint.pformat(bug)
-    assignee = all_assignee_map.get(bug.assigned_to, None)
+
+    assignee = users.get(bug.assigned_to, None)
     summary = "[bug:%d] %s" % (bugId, bug.summary)
     update = comments = bug.getcomments()
     body = "bugzilla-URL: %s/%s\n%s" % (BZ_URL, bugId, comments[0]['text'])
@@ -54,7 +50,7 @@ def main():
     pprint.pformat(comments)
     if len(comments) > 10:
         update = comments[-1]
-    print(update)
+        print(update)
     issue.create_comment(pprint.pformat(update))
 
     closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.url
@@ -65,6 +61,21 @@ def main():
         #bzapi.interactive_login()
 
     # bug.close('UPSTREAM', comment=closing_msg)
+
+def main():
+    # using username and password
+    # gh = Github(GH_USER, GH_PASS)
+
+    user_dict = setup()
+
+    gh = Github(GH_TOKEN)
+    repo = gh.get_repo(GH_REPO)
+    bzapi = bugzilla.Bugzilla(BZ_URL)
+
+    # for each bug in the file:
+    with open("bug.list") as bzlist:
+        bugId = bzlist.readline()
+        migrate_bug(repo, bzapi, user_dict, bugId)
 
 
 main()
