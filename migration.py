@@ -21,46 +21,57 @@ def create_issue(repo_handle, title, desc, labels, assign=None):
         return repo_handle.create_issue(title=title,
                                         body=desc,
                                         labels=labels)
+    who = []
+    who.append(assign)
     return  repo_handle.create_issue(title=title,
                                      body=desc,
                                      labels=labels,
-                                     assignee=assign)
+                                     assignees=who)
 
 def setup():
     bz_to_gh_map = {}
     with open("assignee.list") as alist:
-        email, gh_id = alist.readline().split(' ')
-        bz_to_gh_map[email] = gh_id
+        line = alist.readline()
+        while line:
+            email, gh_id = line.split(' ')
+            bz_to_gh_map[email] = gh_id.strip()
+            line = alist.readline()
 
-    print(bz_to_gh_map)
     return bz_to_gh_map
+
+def close_bug(issue, bug, bzapi, bugId):
+    closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.url
+
+    # TODO: uncomment it in last stage
+    bug.close('UPSTREAM', comment=closing_msg)
+
 
 def migrate_bug(ghrepo, bzapi, users, bugId):
     bug = bzapi.getbug(bugId)
-    print(bug)
-    pprint.pformat(bug)
-
-    assignee = users.get(bug.assigned_to, None)
+    email = "%s@redhat.com" % bug.assigned_to_detail["email"]
+    #assignee = users.get(email, None)
+    assignee = "amarts"
     summary = "[bug:%d] %s" % (bugId, bug.summary)
-    update = comments = bug.getcomments()
+
+    comments = bug.getcomments()
     body = "bugzilla-URL: %s/%s\n%s" % (BZ_URL, bugId, comments[0]['text'])
-    print(comments[0])
-    issue = create_issue(repo, summary, body,
+    issue = create_issue(ghrepo, summary, body,
                          GH_LABELS, assignee)
-    pprint.pformat(comments)
-    if len(comments) > 10:
-        update = comments[-1]
-        print(update)
-    issue.create_comment(pprint.pformat(update))
 
-    closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.url
-    print(closing_msg)
-    # TODO: uncomment it in last stage
-    if not bzapi.logged_in:
-        print("requires login credentials for %s, as we are closing bugs" % BZ_URL)
-        #bzapi.interactive_login()
+    # Update only the latest message in the github issue,
+    # and allow it to be lightweight to start with.
+    comment = None
+    if len(comments) > 2:
+        obj = comments[-1]
+        comment = "Creator: %s\nTime: %s\nText: %s" % (
+            obj['creator'], obj['time'], obj['text']
+        )
+    if comment:
+        issue.create_comment(comment)
 
-    # bug.close('UPSTREAM', comment=closing_msg)
+    # Comment it in testing
+    close_bug(issue, bug, bzapi, bugId)
+    print("Bug %d is now migrated to %s" % (bugId, issue.url))
 
 def main():
     # using username and password
@@ -72,10 +83,15 @@ def main():
     repo = gh.get_repo(GH_REPO)
     bzapi = bugzilla.Bugzilla(BZ_URL)
 
+    if not bzapi.logged_in:
+        print("requires login credentials for %s, as we are closing bugs in this script" % BZ_URL)
+        bzapi.interactive_login()
+
     # for each bug in the file:
     with open("bug.list") as bzlist:
         bugId = bzlist.readline()
-        migrate_bug(repo, bzapi, user_dict, bugId)
-
+        while bugId:
+            migrate_bug(repo, bzapi, user_dict, int(bugId))
+            bugId = bzlist.readline()
 
 main()
