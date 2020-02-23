@@ -13,7 +13,7 @@ BZ_URL = "https://bugzilla.redhat.com"
 GH_USER = ""
 GH_PASS = ""
 GH_TOKEN = ""
-GH_REPO = "amarts/glusterfs"
+GH_REPO = "gluster/glusterfs"
 GH_LABELS = ["Migrated", "Type:Bug"]
 
 def create_issue(repo_handle, title, desc, labels, assign=None):
@@ -39,7 +39,7 @@ def setup():
 
     return bz_to_gh_map
 
-def close_bug(issue, bug, bzapi, bugId):
+def close_bug(issue, bug):
     closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.url
 
     # TODO: uncomment it in last stage
@@ -49,12 +49,16 @@ def close_bug(issue, bug, bzapi, bugId):
 def migrate_bug(ghrepo, bzapi, users, bugId):
     bug = bzapi.getbug(bugId)
     email = "%s@redhat.com" % bug.assigned_to_detail["email"]
-    #assignee = users.get(email, None)
-    assignee = "amarts"
+    assignee = users.get(email, None)
     summary = "[bug:%d] %s" % (bugId, bug.summary)
 
     comments = bug.getcomments()
-    body = "bugzilla-URL: %s/%s\n%s" % (BZ_URL, bugId, comments[0]['text'])
+    body = "URL: %s/%s\nCreator: %s\nTime: %s\n\n%s" % (
+        BZ_URL, bugId,
+        comments[0]['creator'],
+        comments[0]['time'],
+        comments[0]['text']
+    )
     issue = create_issue(ghrepo, summary, body,
                          GH_LABELS, assignee)
 
@@ -70,7 +74,7 @@ def migrate_bug(ghrepo, bzapi, users, bugId):
         issue.create_comment(comment)
 
     # Comment it in testing
-    close_bug(issue, bug, bzapi, bugId)
+    close_bug(issue, bug)
     print("Bug %d is now migrated to %s" % (bugId, issue.url))
 
 def main():
@@ -91,7 +95,10 @@ def main():
     with open("bug.list") as bzlist:
         bugId = bzlist.readline()
         while bugId:
-            migrate_bug(repo, bzapi, user_dict, int(bugId))
+            try:
+                migrate_bug(repo, bzapi, user_dict, int(bugId))
+            except:
+                pass
             bugId = bzlist.readline()
 
 main()
