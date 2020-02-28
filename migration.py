@@ -48,6 +48,10 @@ def close_bug(issue, bug):
 
 def migrate_bug(ghrepo, bzapi, users, bugId):
     bug = bzapi.getbug(bugId)
+    if bug.status == "CLOSED":
+        print("Bug %d is CLOSED, not migrating" % bugId)
+        return
+
     email = "%s@redhat.com" % bug.assigned_to_detail["email"]
     assignee = users.get(email, None)
     summary = "[bug:%d] %s" % (bugId, bug.summary)
