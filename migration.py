@@ -46,12 +46,18 @@ def close_bug(issue, bug):
     bug.close('UPSTREAM', comment=closing_msg)
 
 
-def migrate_bug(ghrepo, bzapi, users, bugId):
+def migrate_bug(gh, bzapi, users, bugId):
     bug = bzapi.getbug(bugId)
     if bug.status == "CLOSED":
         print("Bug %d is CLOSED, not migrating" % bugId)
         return
 
+    if bug.component == 'project-infrastructure':
+        GH_REPO = 'gluster/project-infrastructure'
+    else:
+        GH_REPO = 'gluster/glusterfs'
+
+    repo = gh.get_repo(GH_REPO)
     email = "%s@redhat.com" % bug.assigned_to_detail["email"]
     assignee = users.get(email, None)
     summary = "[bug:%d] %s" % (bugId, bug.summary)
@@ -63,7 +69,7 @@ def migrate_bug(ghrepo, bzapi, users, bugId):
         comments[0]['time'],
         comments[0]['text']
     )
-    issue = create_issue(ghrepo, summary, body,
+    issue = create_issue(repo, summary, body,
                          GH_LABELS, assignee)
 
     # Update only the latest message in the github issue,
@@ -83,24 +89,23 @@ def migrate_bug(ghrepo, bzapi, users, bugId):
 
 def main():
     # using username and password
-    # gh = Github(GH_USER, GH_PASS)
+    gh = Github(GH_USER, GH_PASS)
 
     user_dict = setup()
 
-    gh = Github(GH_TOKEN)
-    repo = gh.get_repo(GH_REPO)
+    #gh = Github(GH_TOKEN)
+    #repo = gh.get_repo(GH_REPO)
     bzapi = bugzilla.Bugzilla(BZ_URL)
 
     if not bzapi.logged_in:
         print("requires login credentials for %s, as we are closing bugs in this script" % BZ_URL)
         bzapi.interactive_login()
-
     # for each bug in the file:
     with open("bug.list") as bzlist:
         bugId = bzlist.readline()
         while bugId:
             try:
-                migrate_bug(repo, bzapi, user_dict, int(bugId))
+                migrate_bug(gh, bzapi, user_dict, int(bugId))
             except:
                 pass
             bugId = bzlist.readline()
