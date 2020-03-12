@@ -65,27 +65,41 @@ def migrate_bug(gh, bzapi, users, bugId):
     comments = bug.getcomments()
     body = "URL: %s/%s\nCreator: %s\nTime: %s\n\n%s" % (
         BZ_URL, bugId,
-        comments[0]['creator'],
+        replace_email(comments[0]['creator']),
         comments[0]['time'],
         comments[0]['text']
     )
+
+    # set the priority labels
+    if bug.priority == 'low':
+        GH_LABELS = ["Migrated", "Type:Bug", "Prio: Low"]
+    if bug.priority == 'medium':
+        GH_LABELS = ["Migrated", "Type:Bug", "Prio: Medium"]
+    if bug.priority == 'high':
+        GH_LABELS = ["Migrated", "Type:Bug", "Prio: High"]
+    if bug.priority == 'urgent':
+        GH_LABELS = ["Migrated", "Type:Bug", "Prio: Urgent"]
+    
     issue = create_issue(repo, summary, body,
                          GH_LABELS, assignee)
 
-    # Update only the latest message in the github issue,
-    # and allow it to be lightweight to start with.
-    comment = None
-    if len(comments) > 2:
-        obj = comments[-1]
-        comment = "Creator: %s\nTime: %s\nText: %s" % (
-            obj['creator'], obj['time'], obj['text']
+    for obj in comments[1:]:
+        comment =  "Time: %s\n%s commented: \n%s" % (
+            obj['time'], replace_email(obj['creator']), obj['text']
         )
-    if comment:
         issue.create_comment(comment)
 
     # Comment it in testing
     close_bug(issue, bug)
     print("Bug %d is now migrated to %s" % (bugId, issue.url))
+
+
+def replace_email(detail):
+    rep={'@': ' at ', '.com': ''}
+    for x,y in rep.items():
+        detail = detail.replace(x, y)
+    return detail
+
 
 def main():
     # using username and password
