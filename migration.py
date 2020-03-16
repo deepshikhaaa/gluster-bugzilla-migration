@@ -40,7 +40,7 @@ def setup():
     return bz_to_gh_map
 
 def close_bug(issue, bug):
-    closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.url
+    closing_msg = "This bug is moved to %s, and will be tracked there from now on. Visit GitHub issues URL for further details" % issue.html_url
 
     # TODO: uncomment it in last stage
     bug.close('UPSTREAM', comment=closing_msg)
@@ -58,7 +58,7 @@ def migrate_bug(gh, bzapi, users, bugId):
         GH_REPO = 'gluster/glusterfs'
 
     repo = gh.get_repo(GH_REPO)
-    email = "%s@redhat.com" % bug.assigned_to_detail["email"]
+    email = "%s" % bug.assigned_to_detail["email"]
     assignee = users.get(email, None)
     summary = "[bug:%d] %s" % (bugId, bug.summary)
 
@@ -79,7 +79,9 @@ def migrate_bug(gh, bzapi, users, bugId):
         GH_LABELS = ["Migrated", "Type:Bug", "Prio: High"]
     if bug.priority == 'urgent':
         GH_LABELS = ["Migrated", "Type:Bug", "Prio: Urgent"]
-    
+    else:
+        GH_LABELS = ["Migrated", "Type:Bug"]
+
     issue = create_issue(repo, summary, body,
                          GH_LABELS, assignee)
 
